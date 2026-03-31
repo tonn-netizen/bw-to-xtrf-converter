@@ -4,7 +4,7 @@ from io import StringIO
 
 # --- UI Setup ---
 st.set_page_config(page_title="BW > XTRF Converter 0.2 by tnk", page_icon="🔄")
-st.title("🔄 Bureau Works to XTRF Converter 0.2")
+st.title("🔄 Bureau Works > XTRF Converter 0.2")
 st.write("Lae üles Bureau Works Logfile (CSV) konvertimaks see XTRFi jaoks söödavasse formaati.")
 
 # --- File Uploader ---
