@@ -1,11 +1,10 @@
 import streamlit as st
 import csv
-from io import StringIO
 
 # --- UI Setup ---
-st.set_page_config(page_title="BW > XTRF Converter 0.2 by tnk", page_icon="🔄")
-st.title("🔄 Bureau Works > XTRF Converter 0.2")
-st.write("Lae üles Bureau Works Logfile (CSV) konvertimaks see XTRFi jaoks söödavasse formaati.")
+st.set_page_config(page_title="BW>XTRF Conv 0.3 by tnk", page_icon="🔄")
+st.title("🔄 Bureau Works > XTRF Converter")
+st.write("Lae üles mitmekeelne BW logifail. Jagan selle iga sihtkeele jaoks eraldi XTRF-ühilduvateks failideks.")
 
 # --- File Uploader ---
 uploaded_file = st.file_uploader("Upload Bureau Works CSV", type=["csv"])
@@ -41,7 +40,10 @@ if uploaded_file is not None:
             row2.extend(["Segments", "Words", "Placeables", "Percent"])
         row2.extend(["Segments", "Words", "Placeables", "Characters"])
         
-        output_rows = []
+        header_string = ";".join(row1) + "\n" + ";".join(row2) + "\n"
+        
+        # Dictionary to store rows separated by Target Language
+        language_files = {}
         
         # Process every row under the header
         for row in rows[header_idx + 1:]:
@@ -82,9 +84,7 @@ if uploaded_file is not None:
             
             chars_per_word = round(tot_c / tot_w, 2) if tot_w > 0 else 0
             def pct(w): return round((w / tot_w) * 100, 2) if tot_w > 0 else 0
-            
-            # Cleans up numbers (e.g., changes 0.0 to 0)
-            def fmt(val): return f"{val:g}"
+            def fmt(val): return f"{val:g}" # Cleans up numbers
             
             # Explicitly force quotes around the filename just like Memsource
             file_lang_str = f'"{filename} | {src_clean}>{tgt_clean}"'
@@ -102,21 +102,27 @@ if uploaded_file is not None:
                 int(tot_s), int(tot_w), 0, int(tot_c)
             ]
             
-            # Manually join with semicolons to avoid random escaping
-            output_rows.append(";".join(str(x) for x in out_row))
+            # Add the formatted row to the correct target language group
+            if tgt_clean not in language_files:
+                language_files[tgt_clean] = []
+                
+            language_files[tgt_clean].append(";".join(str(x) for x in out_row))
 
-        # --- Generate Output CSV String ---
-        final_csv_string = ";".join(row1) + "\n" + ";".join(row2) + "\n" + "\n".join(output_rows) + "\n"
+        # --- UI Output ---
+        st.success(f"✅ File successfully split into {len(language_files)} languages!")
+        st.markdown("### Download Individual Language Files")
         
-        st.success("✅ File converted successfully!")
-        
-        # --- Download Button ---
-        st.download_button(
-            label="⬇️ Download Converted XTRF File",
-            data=final_csv_string.encode("utf-8-sig"),
-            file_name="Converted_XTRF_Analysis.csv",
-            mime="text/csv"
-        )
+        # Create a download button for each target language found
+        for lang, rows in language_files.items():
+            final_csv_string = header_string + "\n".join(rows) + "\n"
+            
+            st.download_button(
+                label=f"⬇️ Download {lang.upper()}",
+                data=final_csv_string.encode("utf-8-sig"),
+                file_name=f"XTRF_Analysis_{lang}.csv", # Includes the language code!
+                mime="text/csv",
+                key=lang # Streamlit needs unique keys for dynamically generated buttons
+            )
         
     except Exception as e:
         st.error(f"An error occurred: {e}. Please ensure it is a valid Bureau Works logfile.")
