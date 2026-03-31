@@ -4,12 +4,12 @@ import csv
 from io import StringIO
 
 # --- UI Setup ---
-st.set_page_config(page_title="BW to XTRF Converter", page_icon="🔄")
-st.title("🔄 Bureau Works to XTRF Converter")
-st.write("Upload a Bureau Works Logfile (CSV) to convert it into a Phrase/Memsource format for XTRF.")
+st.set_page_config(page_title="BW > XTRF Converter by tnk", page_icon="🔄")
+st.title("🔄 Bureau Works > XTRF Converter by tnk")
+st.write("Lae üles Bureau Works Logfile (CSV) konvertimaks see XTRFi jaoks söödavasse formaati.")
 
 # --- File Uploader ---
-uploaded_file = st.file_uploader("Upload Bureau Works CSV", type=["csv"])
+uploaded_file = st.file_uploader("Lae üles Bureau Works CSV", type=["csv"])
 
 if uploaded_file is not None:
     try:
