@@ -1,22 +1,40 @@
 import streamlit as st
-import pandas as pd
 import csv
 from io import StringIO
 
 # --- UI Setup ---
-st.set_page_config(page_title="BW > XTRF Converter by tnk", page_icon="🔄")
-st.title("🔄 Bureau Works > XTRF Converter by tnk")
+st.set_page_config(page_title="BW > XTRF Converter 0.2 by tnk", page_icon="🔄")
+st.title("🔄 Bureau Works to XTRF Converter 0.2")
 st.write("Lae üles Bureau Works Logfile (CSV) konvertimaks see XTRFi jaoks söödavasse formaati.")
 
 # --- File Uploader ---
-uploaded_file = st.file_uploader("Lae üles Bureau Works CSV", type=["csv"])
+uploaded_file = st.file_uploader("Upload Bureau Works CSV", type=["csv"])
 
 if uploaded_file is not None:
     try:
-        # Read the file. sep=None allows pandas to auto-detect commas vs semicolons!
-        bw_df = pd.read_csv(uploaded_file, sep=None, engine='python', header=1)
+        # Read the raw string data
+        string_data = uploaded_file.getvalue().decode("utf-8")
+        lines = string_data.splitlines()
         
-        # --- Conversion Logic ---
+        # Auto-detect delimiter based on the first line
+        delimiter = ';' if ';' in lines[0] else ','
+        
+        # Parse the CSV manually for maximum resilience against bad headers
+        reader = csv.reader(lines, delimiter=delimiter)
+        rows = list(reader)
+        
+        # Find the actual header row dynamically
+        header_idx = -1
+        for i, row in enumerate(rows):
+            if len(row) > 0 and row[0].strip() == 'File':
+                header_idx = i
+                break
+                
+        if header_idx == -1:
+            st.error("Could not find a valid header row starting with 'File'.")
+            st.stop()
+            
+        # Prepare output headers
         row1 = ["", "", "", "Context Match", "", "", "", "Repetitions", "", "", "", "100%", "", "", "", "95% - 99%", "", "", "", "85% - 94%", "", "", "", "75% - 84%", "", "", "", "50% - 74%", "", "", "", "No Match", "", "", "", "Total"]
         row2 = ["File", "Tagging Errors", "Chars/Word"]
         for _ in range(8):
@@ -24,61 +42,81 @@ if uploaded_file is not None:
         row2.extend(["Segments", "Words", "Placeables", "Characters"])
         
         output_rows = []
-        for _, row in bw_df.iterrows():
-            filename = str(row.iloc[0])
-            if "Summary [" in filename:
+        
+        # Process every row under the header
+        for row in rows[header_idx + 1:]:
+            if len(row) < 33: # Skip broken/empty rows
+                continue
+            
+            filename = row[0].strip()
+            # Skip empty rows and summary rows
+            if not filename or "Summary [" in filename:
                 continue
                 
-            src, tgt = str(row.iloc[1]), str(row.iloc[2])
-            tot_s, tot_w, tot_c = float(row.iloc[3]), float(row.iloc[4]), float(row.iloc[5])
+            src = row[1].strip()
+            tgt = row[2].strip()
             
-            nt_s, nt_w = float(row.iloc[6]), float(row.iloc[7])
-            rep_s, rep_w = float(row.iloc[9]), float(row.iloc[10])
-            nm_s, nm_w = float(row.iloc[12]), float(row.iloc[13])
-            p50_s, p50_w = float(row.iloc[15]), float(row.iloc[16])
-            p75_s, p75_w = float(row.iloc[18]), float(row.iloc[19])
-            p85_s, p85_w = float(row.iloc[21]), float(row.iloc[22])
-            p95_s, p95_w = float(row.iloc[24]), float(row.iloc[25])
-            p100_s, p100_w = float(row.iloc[27]), float(row.iloc[28])
-            cm_s, cm_w = float(row.iloc[30]), float(row.iloc[31])
+            # Format language codes from et_ee to et-ee
+            src_clean = src.replace('_', '-')
+            tgt_clean = tgt.replace('_', '-')
             
+            # Safe float conversion
+            def to_float(val):
+                try: return float(val)
+                except: return 0.0
+                
+            tot_s, tot_w, tot_c = to_float(row[3]), to_float(row[4]), to_float(row[5])
+            nt_s, nt_w = to_float(row[6]), to_float(row[7])
+            rep_s, rep_w = to_float(row[9]), to_float(row[10])
+            nm_s, nm_w = to_float(row[12]), to_float(row[13])
+            p50_s, p50_w = to_float(row[15]), to_float(row[16])
+            p75_s, p75_w = to_float(row[18]), to_float(row[19])
+            p85_s, p85_w = to_float(row[21]), to_float(row[22])
+            p95_s, p95_w = to_float(row[24]), to_float(row[25])
+            p100_s, p100_w = to_float(row[27]), to_float(row[28])
+            cm_s, cm_w = to_float(row[30]), to_float(row[31])
+            
+            # Combine non-translatables and 0-49%
             nm_s += nt_s
             nm_w += nt_w
             
             chars_per_word = round(tot_c / tot_w, 2) if tot_w > 0 else 0
             def pct(w): return round((w / tot_w) * 100, 2) if tot_w > 0 else 0
-
+            
+            # Cleans up numbers (e.g., changes 0.0 to 0)
+            def fmt(val): return f"{val:g}"
+            
+            # Explicitly force quotes around the filename just like Memsource
+            file_lang_str = f'"{filename} | {src_clean}>{tgt_clean}"'
+            
             out_row = [
-                f"{filename} | {src}>{tgt}", 0, chars_per_word,
-                int(cm_s), int(cm_w), 0, pct(cm_w),
-                int(rep_s), int(rep_w), 0, pct(rep_w),
-                int(p100_s), int(p100_w), 0, pct(p100_w),
-                int(p95_s), int(p95_w), 0, pct(p95_w),
-                int(p85_s), int(p85_w), 0, pct(p85_w),
-                int(p75_s), int(p75_w), 0, pct(p75_w),
-                int(p50_s), int(p50_w), 0, pct(p50_w),
-                int(nm_s), int(nm_w), 0, pct(nm_w),
+                file_lang_str, 0, fmt(chars_per_word),
+                int(cm_s), int(cm_w), 0, fmt(pct(cm_w)),
+                int(rep_s), int(rep_w), 0, fmt(pct(rep_w)),
+                int(p100_s), int(p100_w), 0, fmt(pct(p100_w)),
+                int(p95_s), int(p95_w), 0, fmt(pct(p95_w)),
+                int(p85_s), int(p85_w), 0, fmt(pct(p85_w)),
+                int(p75_s), int(p75_w), 0, fmt(pct(p75_w)),
+                int(p50_s), int(p50_w), 0, fmt(pct(p50_w)),
+                int(nm_s), int(nm_w), 0, fmt(pct(nm_w)),
                 int(tot_s), int(tot_w), 0, int(tot_c)
             ]
-            output_rows.append(out_row)
-
-        # --- Generate Output CSV in Memory ---
-        output = StringIO()
-        writer = csv.writer(output, delimiter=";")
-        writer.writerow(row1)
-        writer.writerow(row2)
-        for r in output_rows:
-            writer.writerow(r)
             
+            # Manually join with semicolons to avoid random escaping
+            output_rows.append(";".join(str(x) for x in out_row))
+
+        # --- Generate Output CSV String ---
+        final_csv_string = ";".join(row1) + "\n" + ";".join(row2) + "\n" + "\n".join(output_rows) + "\n"
+        
         st.success("✅ File converted successfully!")
         
         # --- Download Button ---
         st.download_button(
             label="⬇️ Download Converted XTRF File",
-            data=output.getvalue().encode("utf-8-sig"), # utf-8-sig ensures Excel/XTRF reads special characters correctly
+            data=final_csv_string.encode("utf-8-sig"),
             file_name="Converted_XTRF_Analysis.csv",
             mime="text/csv"
         )
         
     except Exception as e:
-        st.error(f"An error occurred while processing the file: {e}. Please ensure it is a valid Bureau Works logfile.")
+        st.error(f"An error occurred: {e}. Please ensure it is a valid Bureau Works logfile.")
